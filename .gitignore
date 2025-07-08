@@ -59,8 +59,7 @@ temp/
 tmp/
 
 # Docker volumes and data (but keep docker-compose.yml)
-postgres-data/*
-!postgres-data/.gitkeep
+postgres-data/
 
 # Build outputs
 /bin/
