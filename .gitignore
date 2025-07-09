@@ -58,9 +58,6 @@ temp/
 # Air live reloading tool
 tmp/
 
-# Docker volumes and data (but keep docker-compose.yml)
-postgres-data/
-
 # Build outputs
 /bin/
 /pkg/
