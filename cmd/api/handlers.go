@@ -178,19 +178,35 @@ func (app *application) GetAllPolls(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) AddPollOptions(w http.ResponseWriter, r *http.Request) {
+	// read url parameters
+	pollIDStr := chi.URLParam(r, "pollID")
+
+	pollID, err := strconv.Atoi(pollIDStr)
+
+	if err != nil {
+		app.writeError(w, errors.New("invalid poll ID"))
+		return
+	}
+
+	err = app.checkPollOwnership(w, r)
+
+	if err != nil {
+		app.writeError(w, err, http.StatusUnauthorized)
+		return
+	}
+
 	var payload struct {
-		PollID  int                 `json:"poll_id"`
 		Options []models.PollOption `json:"options"`
 	}
 
-	err := app.readJSON(w, r, &payload)
+	err = app.readJSON(w, r, &payload)
 
 	if err != nil {
 		app.writeError(w, err)
 		return
 	}
 
-	err = app.DB.AddPollOptions(payload.PollID, payload.Options)
+	err = app.DB.AddPollOptions(pollID, payload.Options)
 
 	if err != nil {
 		app.writeError(w, err)
@@ -220,25 +236,44 @@ func (app *application) GetPoll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) UpdatePoll(w http.ResponseWriter, r *http.Request) {
+	// read url parameters
+	pollIDStr := chi.URLParam(r, "pollID")
+
+	pollID, err := strconv.Atoi(pollIDStr)
+
+	if err != nil {
+		app.writeError(w, errors.New("invalid poll ID"))
+		return
+	}
+
+	// check if user is authorized to update poll
+	err = app.checkPollOwnership(w, r)
+
+	if err != nil {
+		app.writeError(w, err, http.StatusUnauthorized)
+		return
+	}
+
+	// read data
 	var payload struct {
-		PollID      int    `json:"poll_id"`
 		Title       string `json:"title"`
 		Description string `json:"description"`
 	}
 
-	err := app.readJSON(w, r, &payload)
+	err = app.readJSON(w, r, &payload)
 
 	if err != nil {
 		app.writeError(w, err)
 		return
 	}
 
+	// update poll
 	poll := models.Poll{
 		Title:       payload.Title,
 		Description: payload.Description,
 	}
 
-	err = app.DB.UpdatePollByID(payload.PollID, poll)
+	err = app.DB.UpdatePollByID(pollID, poll)
 
 	if err != nil {
 		app.writeError(w, err)
@@ -250,14 +285,22 @@ func (app *application) UpdatePoll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) RemovePoll(w http.ResponseWriter, r *http.Request) {
+
 	pollIDStr := chi.URLParam(r, "pollID")
 
 	pollID, err := strconv.Atoi(pollIDStr)
+
 	if err != nil {
 		app.writeError(w, errors.New("invalid poll ID"))
 		return
 	}
 
+	err = app.checkPollOwnership(w, r)
+
+	if err != nil {
+		app.writeError(w, err, http.StatusUnauthorized)
+		return
+	}
 	err = app.DB.DeletePollByID(pollID)
 
 	if err != nil {
@@ -269,19 +312,33 @@ func (app *application) RemovePoll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) UpdatePollOption(w http.ResponseWriter, r *http.Request) {
-	var payload struct {
-		OptionID int    `json:"option_id"`
-		Text     string `json:"text"`
+	optionIDStr := chi.URLParam(r, "optionID")
+
+	optionID, err := strconv.Atoi(optionIDStr)
+	if err != nil {
+		app.writeError(w, errors.New("invalid ID"))
+		return
 	}
 
-	err := app.readJSON(w, r, &payload)
+	err = app.checkPollOwnership(w, r)
+
+	if err != nil {
+		app.writeError(w, err, http.StatusUnauthorized)
+		return
+	}
+
+	var payload struct {
+		Text string `json:"text"`
+	}
+
+	err = app.readJSON(w, r, &payload)
 
 	if err != nil {
 		app.writeError(w, err)
 		return
 	}
 
-	err = app.DB.UpdateOptionByID(payload.OptionID, payload.Text)
+	err = app.DB.UpdateOptionByID(optionID, payload.Text)
 
 	if err != nil {
 		app.writeError(w, err)
@@ -300,6 +357,13 @@ func (app *application) RemovePollOption(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	err = app.checkPollOwnership(w, r)
+
+	if err != nil {
+		app.writeError(w, err, http.StatusUnauthorized)
+		return
+	}
+
 	err = app.DB.DeleteOptionByID(optionID)
 
 	if err != nil {
@@ -311,9 +375,87 @@ func (app *application) RemovePollOption(w http.ResponseWriter, r *http.Request)
 }
 
 func (app *application) Vote(w http.ResponseWriter, r *http.Request) {
+	userIDstr, ok := r.Context().Value("userID").(string)
+
+	if !ok {
+		app.writeError(w, errors.New("missing user"))
+		return
+	}
+
+	userID, err := strconv.Atoi(userIDstr)
+
+	if err != nil {
+		app.writeError(w, err)
+		return
+	}
+
+	optionIDStr := chi.URLParam(r, "optionID")
+
+	optionID, err := strconv.Atoi(optionIDStr)
+	if err != nil {
+		app.writeError(w, errors.New("invalid ID"))
+		return
+	}
+
+	err = app.DB.Vote(optionID, userID)
+
+	if err != nil {
+		app.writeError(w, err)
+		return
+	}
+
+	app.writeMessage(w, "Voted successfully")
 
 }
 
-func (app *application) GetOptionVotes(w http.ResponseWriter, r *http.Request) {
+func (app *application) Unvote(w http.ResponseWriter, r *http.Request) {
+	userIDstr, ok := r.Context().Value("userID").(string)
 
+	if !ok {
+		app.writeError(w, errors.New("missing user"))
+		return
+	}
+
+	userID, err := strconv.Atoi(userIDstr)
+
+	if err != nil {
+		app.writeError(w, err)
+		return
+	}
+
+	optionIDStr := chi.URLParam(r, "optionID")
+
+	optionID, err := strconv.Atoi(optionIDStr)
+	if err != nil {
+		app.writeError(w, errors.New("invalid ID"))
+		return
+	}
+
+	err = app.DB.Unvote(optionID, userID)
+
+	if err != nil {
+		app.writeError(w, err)
+		return
+	}
+
+	app.writeMessage(w, "Unvoted successfully")
+}
+
+func (app *application) GetOptionVotes(w http.ResponseWriter, r *http.Request) {
+	optionIDStr := chi.URLParam(r, "optionID")
+
+	optionID, err := strconv.Atoi(optionIDStr)
+	if err != nil {
+		app.writeError(w, errors.New("invalid ID"))
+		return
+	}
+
+	votes, err := app.DB.GetOptionVotes(optionID)
+
+	if err != nil {
+		app.writeError(w, err)
+		return
+	}
+
+	app.writeJSON(w, http.StatusOK, votes)
 }

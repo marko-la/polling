@@ -112,7 +112,7 @@ func (m *DBRepo) GetAllPolls() ([]*models.Poll, error) {
 	var polls []*models.Poll
 
 	query := `
-		SELECT id, title, description
+		SELECT id, title, description, user_id
 		FROM polls
 	`
 
@@ -130,6 +130,7 @@ func (m *DBRepo) GetAllPolls() ([]*models.Poll, error) {
 			&poll.ID,
 			&poll.Title,
 			&poll.Description,
+			&poll.UserID,
 		)
 
 		if err != nil {
@@ -203,7 +204,7 @@ func (m *DBRepo) GetPollByID(id int) (*models.Poll, error) {
 	defer cancel()
 
 	query := `
-		SELECT id, title, description
+		SELECT id, title, description, user_id
 		FROM polls 
 		WHERE id = $1
 	`
@@ -216,6 +217,7 @@ func (m *DBRepo) GetPollByID(id int) (*models.Poll, error) {
 		&poll.ID,
 		&poll.Title,
 		&poll.Description,
+		&poll.UserID,
 	)
 
 	if err != nil {
@@ -284,5 +286,83 @@ func (m *DBRepo) DeleteOptionByID(id int) error {
 	`
 
 	_, err := m.DB.ExecContext(ctx, query, id)
+	return err
+}
+
+func (m *DBRepo) Vote(option_id int, user_id int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	query := `
+		INSERT INTO votes (option_id, user_id)
+		VALUES ($1, $2)
+		ON CONFLICT (option_id, user_id) DO NOTHING
+	`
+
+	_, err := m.DB.ExecContext(ctx, query, option_id, user_id)
+	return err
+}
+
+func (m *DBRepo) GetOptionVotes(option_id int) ([]*models.Vote, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	votes := []*models.Vote{}
+
+	query := `
+		SELECT id, option_id, user_id
+		FROM votes
+	`
+
+	rows, err := m.DB.QueryContext(ctx, query)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var vote models.Vote
+		err := rows.Scan(
+			&vote.ID,
+			&vote.OptionID,
+			&vote.UserID,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		votes = append(votes, &vote)
+	}
+
+	return votes, nil
+
+}
+
+func (m *DBRepo) IsPollOwner(pollID int, userID int) bool {
+	realPoll, err := m.GetPollByID(pollID)
+	if err != nil {
+		return false
+	}
+
+	if realPoll.UserID != userID {
+		return false
+	}
+
+	return true
+}
+
+func (m *DBRepo) Unvote(option_id int, user_id int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	query := `
+		DELETE FROM votes 
+		WHERE option_id = $1 AND user_id = $2
+	`
+
+	_, err := m.DB.ExecContext(ctx, query, option_id, user_id)
 	return err
 }

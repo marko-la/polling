@@ -18,4 +18,8 @@ type Repository interface {
 	DeletePollByID(id int) error
 	UpdateOptionByID(id int, text string) error
 	DeleteOptionByID(id int) error
+	Vote(option_id int, user_id int) error
+	GetOptionVotes(option_id int) ([]*models.Vote, error)
+	IsPollOwner(pollID int, userID int) bool
+	Unvote(option_id int, user_id int) error
 }

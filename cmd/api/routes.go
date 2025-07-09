@@ -21,18 +21,22 @@ func (app *application) routes() http.Handler {
 	mux.Post("/login", app.Login)
 
 	mux.Get("/polls", app.GetAllPolls)
-	mux.Get("/poll/{pollID}", app.GetPoll)
+	mux.Get("/polls/{pollID}", app.GetPoll)
 
-	mux.Post("/poll/update", app.UpdatePoll)
-	mux.Delete("/poll/{pollID}", app.RemovePoll)
-
-	mux.Post("/poll/add-options", app.AddPollOptions)
-	mux.Post("/poll/option/update", app.UpdatePollOption)
-	mux.Delete("/poll/option/{optionID}", app.RemovePollOption)
+	mux.Get("/polls/{pollID}/options/{optionID}/votes", app.GetOptionVotes)
 
 	mux.Route("/", func(r chi.Router) {
 		r.Use(app.authRequired)
-		r.Post("/poll/create", app.CreatePoll)
+		r.Post("/polls/create", app.CreatePoll)
+		r.Put("/polls/{pollID}", app.UpdatePoll)
+		r.Delete("/polls/{pollID}", app.RemovePoll)
+
+		r.Post("/polls/{pollID}/options", app.AddPollOptions)
+		r.Put("/polls/{pollID}/options/{optionID}", app.UpdatePollOption)
+		r.Delete("/polls/{pollID}/options/{optionID}", app.RemovePollOption)
+
+		r.Put("/polls/{pollID}/options/{optionID}/votes", app.Vote)
+		r.Delete("/polls/{pollID}/options/{optionID}/votes", app.Unvote)
 	})
 
 	return mux

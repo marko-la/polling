@@ -5,6 +5,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type JSONResponse struct {
@@ -91,4 +94,32 @@ func (app *application) writeMessage(w http.ResponseWriter, message string, stat
 	payload.Message = message
 
 	return app.writeJSON(w, statusCode, payload)
+}
+
+func (app *application) checkPollOwnership(w http.ResponseWriter, r *http.Request) error {
+	userIDstr, ok := r.Context().Value("userID").(string)
+
+	if !ok {
+		return errors.New("missing user")
+	}
+
+	userID, err := strconv.Atoi(userIDstr)
+
+	if err != nil {
+		return err
+	}
+
+	pollIDStr := chi.URLParam(r, "pollID")
+
+	pollID, err := strconv.Atoi(pollIDStr)
+
+	if err != nil {
+		return errors.New("invalid poll ID")
+	}
+
+	if !app.DB.IsPollOwner(pollID, userID) {
+		return errors.New("you are not authorized to update this poll")
+	}
+
+	return nil
 }
