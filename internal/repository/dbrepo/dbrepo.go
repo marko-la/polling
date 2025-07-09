@@ -98,6 +98,14 @@ func (m *DBRepo) GetPollOptions(id int) ([]*models.PollOption, error) {
 			return nil, err
 		}
 
+		votes, err := m.GetOptionVotes(opt.ID)
+
+		if err != nil {
+			return nil, err
+		}
+
+		opt.Votes = votes
+
 		options = append(options, &opt)
 
 	}
@@ -289,7 +297,7 @@ func (m *DBRepo) DeleteOptionByID(id int) error {
 	return err
 }
 
-func (m *DBRepo) Vote(option_id int, user_id int) error {
+func (m *DBRepo) Vote(poll_id int, option_id int, user_id int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
@@ -299,7 +307,21 @@ func (m *DBRepo) Vote(option_id int, user_id int) error {
 		ON CONFLICT (option_id, user_id) DO NOTHING
 	`
 
-	_, err := m.DB.ExecContext(ctx, query, option_id, user_id)
+	options, err := m.GetPollOptions(poll_id)
+
+	if err != nil {
+		return err
+	}
+
+	for _, option := range options {
+		err = m.Unvote(option.ID, user_id)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = m.DB.ExecContext(ctx, query, option_id, user_id)
+
 	return err
 }
 
@@ -312,9 +334,10 @@ func (m *DBRepo) GetOptionVotes(option_id int) ([]*models.Vote, error) {
 	query := `
 		SELECT id, option_id, user_id
 		FROM votes
+		WHERE option_id = $1
 	`
 
-	rows, err := m.DB.QueryContext(ctx, query)
+	rows, err := m.DB.QueryContext(ctx, query, option_id)
 
 	if err != nil {
 		return nil, err

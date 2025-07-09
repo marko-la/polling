@@ -389,15 +389,23 @@ func (app *application) Vote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pollIDStr := chi.URLParam(r, "pollID")
+
+	pollID, err := strconv.Atoi(pollIDStr)
+	if err != nil {
+		app.writeError(w, errors.New("invalid poll ID"))
+		return
+	}
+
 	optionIDStr := chi.URLParam(r, "optionID")
 
 	optionID, err := strconv.Atoi(optionIDStr)
 	if err != nil {
-		app.writeError(w, errors.New("invalid ID"))
+		app.writeError(w, errors.New("invalid option ID"))
 		return
 	}
 
-	err = app.DB.Vote(optionID, userID)
+	err = app.DB.Vote(pollID, optionID, userID)
 
 	if err != nil {
 		app.writeError(w, err)

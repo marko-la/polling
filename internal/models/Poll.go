@@ -1,8 +1,9 @@
 package models
 
 type PollOption struct {
-	ID   int    `json:"id"`
-	Text string `json:"text"`
+	ID    int     `json:"id"`
+	Text  string  `json:"text"`
+	Votes []*Vote `json:"votes"`
 }
 
 type Poll struct {
