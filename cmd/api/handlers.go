@@ -84,18 +84,60 @@ func (app *application) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app.writeJSON(w, http.StatusOK, user)
+	// create a jwt user
+
+	u := jwtUser{
+		ID: user.ID,
+
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+	}
+
+	// generate tokens
+	tokens, err := app.auth.GenerateTokenPair(&u)
+	if err != nil {
+		app.writeError(w, err)
+		return
+	}
+
+	refreshCookie := app.auth.GetRefreshCookie(tokens.RefreshToken)
+
+	http.SetCookie(w, refreshCookie)
+
+	res := struct {
+		User   jwtUser    `json:"user"`
+		Tokens TokenPairs `json:"tokens"`
+	}{
+		User:   u,
+		Tokens: tokens,
+	}
+
+	app.writeJSON(w, http.StatusOK, res)
 }
 
 // poll routes handlers
 
 func (app *application) CreatePoll(w http.ResponseWriter, r *http.Request) {
+	userIDstr, ok := r.Context().Value("userID").(string)
+
+	if !ok {
+		app.writeError(w, errors.New("missing user"))
+		return
+	}
+
+	userID, err := strconv.Atoi(userIDstr)
+
+	if err != nil {
+		app.writeError(w, err)
+		return
+	}
+
 	var payload struct {
 		Title       string `json:"title"`
 		Description string `json:"description"`
 	}
 
-	err := app.readJSON(w, r, &payload)
+	err = app.readJSON(w, r, &payload)
 
 	if err != nil {
 		app.writeError(w, err)
@@ -110,6 +152,7 @@ func (app *application) CreatePoll(w http.ResponseWriter, r *http.Request) {
 	poll := models.Poll{
 		Title:       payload.Title,
 		Description: payload.Description,
+		UserID:      userID,
 	}
 
 	created, err := app.DB.CreatePoll(poll)

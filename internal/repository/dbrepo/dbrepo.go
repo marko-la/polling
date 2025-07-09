@@ -157,11 +157,11 @@ func (m *DBRepo) CreatePoll(data models.Poll) (*models.Poll, error) {
 	defer cancel()
 
 	query := `
-		INSERT INTO polls (title, description)
-		VALUES ($1, $2)
-		RETURNING id, title, description`
+		INSERT INTO polls (title, description, user_id)
+		VALUES ($1, $2, $3)
+		RETURNING id, title, description, user_id`
 
-	row := m.DB.QueryRowContext(ctx, query, data.Title, data.Description)
+	row := m.DB.QueryRowContext(ctx, query, data.Title, data.Description, data.UserID)
 
 	var result models.Poll
 
@@ -169,6 +169,7 @@ func (m *DBRepo) CreatePoll(data models.Poll) (*models.Poll, error) {
 		&result.ID,
 		&result.Title,
 		&result.Description,
+		&result.UserID,
 	)
 
 	if err != nil {
@@ -183,7 +184,7 @@ func (m *DBRepo) AddPollOptions(pollId int, options []models.PollOption) error {
 	defer cancel()
 	query := `INSERT INTO poll_options (poll_id, option_text) VALUES `
 
-	var args []interface{}
+	var args []any
 	var placeholders []string
 
 	for i, option := range options {
